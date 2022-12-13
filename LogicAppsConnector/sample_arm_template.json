@@ -1,0 +1,184 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {},
+  "variables": {
+    "workflowName": "partner_workflow"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Logic/workflows",
+      "apiVersion": "2017-07-01",
+      "name": "[variables('workflowName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "state": "Enabled",
+        "definition": {
+          "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {},
+          "triggers": {
+            "manual": {
+              "type": "Request",
+              "kind": "Http",
+              "inputs": {
+                "schema": {
+                  "properties": {
+                    "clientId": {
+                      "type": "securestring"
+                    },
+                    "clientSecret": {
+                      "type": "securestring"
+                    },
+                    "lastrefreshtime": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "actions": {
+            "InitializeContinuationToken": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "ContinuationToken",
+                    "type": "string",
+                    "value": "@{null}"
+                  }
+                ]
+              }
+            },
+            "try": {
+              "runAfter": {
+                "InitializeContinuationToken": [
+                  "Succeeded"
+                ]
+              },
+              "type": "Scope",
+              "actions": {
+                "GetToken": {
+                  "type": "Http",
+                  "inputs": {
+                    "method": "POST",
+                    "uri": "www.testuri.com",
+                    "headers": {
+                      "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    "body": "client_id=@{triggerBody()?.clientId}&client_secret=@{triggerBody()?.clientSecret}&grant_type=client_credentials&response_type=token"
+                  },
+                  "runtimeConfiguration": {
+                    "secureData": {
+                      "properties": [
+                        "inputs",
+                        "outputs"
+                      ]
+                    }
+                  }
+                },
+                "UntilTheContinuationTokenIsNull": {
+                  "runAfter": {
+                    "GetToken": [
+                      "Succeeded"
+                    ]
+                  },
+                  "actions": {
+                    "CallPartnerEndpoint": {
+                      "type": "Http",
+                      "inputs": {
+                        "method": "POST",
+                        "uri": "https://@{triggerBody()?.instanceName}.azurewebsites.net/api/purchasedEnergy?api-version=2022-12-04",
+                        "headers": {
+                          "Authorization": "@{concat('Bearer ', body('GetToken')?.access_token)}",
+                          "Content-Type": "application/json",
+                          "correlation-id": "@{triggerBody()?.correlationId}"
+                        },
+                        "body": {
+                          "StartDate": "@{triggerBody()?.lastRefreshTime}",
+                          "ContinuationToken": "@{variables('ContinuationToken')}",
+                          "MaxNumberOfItems": 100
+                        }
+                      }
+                    },
+                    "DetermineIfMoreDataIsAvailable": {
+                      "runAfter": {
+                        "CallPartnerEndpoint": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "SetVariable",
+                      "inputs": {
+                        "name": "ContinuationToken",
+                        "value": "@{body('CallPartnerEndpoint').continuationToken}"
+                      }
+                    },
+                    "AlignToMSMConnectorSchema": {
+                      "runAfter": {
+                        "DetermineIfMoreDataIsAvailable": [
+                          "Succeeded"
+                        ]
+                      },
+                      "type": "Select",
+                      "inputs": {
+                        "from": "@array(body('CallPartnerEndpoint')?.data)",
+                        "select": {
+                          "msdyn_consumptionstartdate": "@{item()?.consumptionStartDate}",
+                          "msdyn_consumptionenddate": "@{item()?.consumptionEndDate}",
+                          "msdyn_cost": "@{item()?.cost}",
+                          "msdyn_costunit": "@{item()?.costUnit}",
+                          "msdyn_dataqualitytype": "@{item()?.dataQualityType}",
+                          "msdyn_energyprovidername": "@{item()?.energyProviderName}",
+                          "msdyn_energytype": "@{item()?.energyType}",
+                          "msdyn_facilityid": "@{item()?.facility}",
+                          "msdyn_isrenewable": "@{item()?.isRenewable}",
+                          "msdyn_name": "@{item()?.name}",
+                          "msdyn_organizationalunitid": "@{item()?.organizationalUnit}",
+                          "msdyn_quantity": "@{item()?.quantity}",
+                          "msdyn_quantityunit": "@{item()?.quantityUnit}",
+                          "msdyn_description": "@{item()?.description}",
+                          "msdyn_evidence": "@{item()?.evidence}",
+                          "msdyn_contractualinstrumenttypeid": "@{item()?.contractualInstrumentType}",
+                          "msdyn_origincorrelationid": "@{item()?.originCorrelationId}",
+                          "msdyn_transactiondate": "@{item()?.transactionDate}",
+                          "msdyn_meternumber": "@{item()?.meterNumber}"
+                        }
+                      }
+                    }
+                  },
+                  "expression": "@equals(body('CallPartnerEndpoint')?.continuationToken, null)",
+                  "limit": {
+                    "count": 1000,
+                    "timeout": "PT1H"
+                  },
+                  "type": "Until"
+                }
+              }
+            },
+            "catch": {
+              "runAfter": {
+                "try": [
+                  "TimedOut",
+                  "Skipped",
+                  "Failed"
+                ]
+              },
+              "type": "Scope",
+              "actions": {}
+            }
+          },
+          "outputs": {}
+        },
+        "parameters": {}
+      }
+    }
+  ],
+  "outputs": {
+    "workflowName": {
+      "type": "string",
+      "value": "[variables('workflowName')]"
+    }
+  }
+}
