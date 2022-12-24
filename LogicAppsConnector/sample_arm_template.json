@@ -64,7 +64,7 @@
                   "type": "Http",
                   "inputs": {
                     "method": "POST",
-                    "uri": "www.testuri.com",
+                    "uri": "https://www.testuri.com",
                     "headers": {
                       "Content-Type": "application/x-www-form-urlencoded"
                     },
