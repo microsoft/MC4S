@@ -21,14 +21,23 @@
             "manual": {
               "type": "Request",
               "kind": "Http",
+              "operationOptions": "EnableSchemaValidation",
+              "runtimeConfiguration": {
+                "secureData": {
+                  "properties": [
+                    "inputs",
+                    "outputs"
+                  ]
+                }
+              },
               "inputs": {
                 "schema": {
                   "properties": {
                     "clientId": {
-                      "type": "securestring"
+                      "type": "string"
                     },
                     "clientSecret": {
-                      "type": "securestring"
+                      "type": "string"
                     },
                     "lastrefreshtime": {
                       "type": "string"
