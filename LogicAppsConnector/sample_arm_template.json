@@ -144,28 +144,6 @@
                                     },
                                     "type": "Http"
                                 },
-                                "HTTP_-_write_to_MDL_complete_(do_not_modify)": {
-                                    "inputs": {
-                                        "body": {
-                                            "connectionRefreshId": "@triggerBody()?['refreshId']",
-                                            "correlationId": "@triggerBody()?['correlationId']",
-                                            "dataRecords": [],
-                                            "isIngestionComplete": "true",
-                                            "lastRefreshTime": "@variables('currentRefreshTime')",
-                                            "sourceDataField": "msdyn_energytype",
-                                            "sourceDataValue": "700610000",
-                                            "targetEntityName": "msdyn_purchasedenergy"
-                                        },
-                                        "method": "POST",
-                                        "uri": "@{triggerBody()?['microserviceBaseUrl']}/writeDataToMDL?api-version=1.0"
-                                    },
-                                    "runAfter": {
-                                        "Condition_if_valid_credentials": [
-                                            "Succeeded"
-                                        ]
-                                    },
-                                    "type": "Http"
-                                },
                                 "Parse_token_status": {
                                     "inputs": {
                                         "content": "body@{body('GetToken')}",
