@@ -33,7 +33,7 @@
           },
           "catch": {
               "actions": {
-                  "HTTP_-_set_connection_to_failed_(do_not_modify_URI_field)": {
+                  "HTTP_-_set_connection_to_failed_(do_not_modify)": {
                       "inputs": {
                           "body": {
                               "connectionRefreshId": "@triggerBody()?['refreshId']",
@@ -60,7 +60,7 @@
               "actions": {
                   "Condition_if_valid_credentials": {
                       "actions": {
-                          "HTTP_-_write_to_mdl_(do_not_modify_URI_field)": {
+                          "HTTP_-_write_to_mdl_(do_not_modify)": {
                               "inputs": {
                                   "body": {
                                       "connectionRefreshId": "@triggerBody()?['refreshId']",
@@ -78,7 +78,7 @@
                       },
                       "else": {
                           "actions": {
-                              "HTTP_-_set_connection_failed_incorrect_credentials_(do_not_modify_URI_field)": {
+                              "HTTP_-_set_connection_failed_incorrect_credentials_(do_not_modify)": {
                                   "inputs": {
                                       "body": {
                                           "connectionRefreshId": "@triggerBody()?['refreshId']",
@@ -130,7 +130,7 @@
                       },
                       "type": "Http"
                   },
-                  "HTTP_-_write_to_MDL_complete_(do_not_modify_URI_field)": {
+                  "HTTP_-_write_to_MDL_complete_(do_not_modify)": {
                       "inputs": {
                           "body": {
                               "connectionRefreshId": "@triggerBody()?['refreshId']",
