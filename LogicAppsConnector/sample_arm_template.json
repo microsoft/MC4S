@@ -1,249 +1,227 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-    "contentVersion": "1.0.0.0",
-    "parameters": {},
-    "variables": {
-        "workflowName": "partner_workflow"
-    },
-    "resources": [
-        {
-            "type": "Microsoft.Logic/workflows",
-            "apiVersion": "2017-07-01",
-            "name": "[variables('workflowName')]",
-            "location": "[resourceGroup().location]",
-            "properties": {
-                "state": "Enabled",
-                "definition": {
-                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-                    "actions": {
-                        "Initialize_current_refresh_time": {
-                            "inputs": {
-                                "variables": [
-                                    {
-                                        "name": "currentRefreshTime",
-                                        "type": "string",
-                                        "value": "@{utcNow()}"
-                                    }
-                                ]
-                            },
-                            "runAfter": {
-                                "Initialize_variable": [
-                                    "Succeeded"
-                                ]
-                            },
-                            "type": "InitializeVariable"
-                        },
-                        "Initialize_variable": {
-                            "inputs": {
-                                "variables": [
-                                    {
-                                        "name": "data",
-                                        "type": "array"
-                                    }
-                                ]
-                            },
-                            "runAfter": {},
-                            "type": "InitializeVariable"
-                        },
-                        "catch": {
-                            "actions": {
-                                "HTTP_-_set_connection_to_failed_(do_not_modify)": {
-                                    "inputs": {
-                                        "body": {
-                                            "connectionRefreshId": "@triggerBody()?['refreshId']",
-                                            "correlationId": "@triggerBody()?['correlationId']",
-                                            "errorMessage": "Error writing data to MDL"
-                                        },
-                                        "method": "POST",
-                                        "uri": "@{triggerBody()?['microserviceBaseUrl']}/reportLogicAppsError?api-version=1.0"
-                                    },
-                                    "runAfter": {},
-                                    "type": "Http"
-                                }
-                            },
-                            "runAfter": {
-                                "try": [
-                                    "TimedOut",
-                                    "Skipped",
-                                    "Failed"
-                                ]
-                            },
-                            "type": "Scope"
-                        },
-                        "try": {
-                            "actions": {
-                                "Condition_if_valid_credentials": {
-                                    "actions": {
-                                        "HTTP_-_write_to_mdl_(do_not_modify)": {
-                                            "inputs": {
-                                                "body": {
-                                                    "connectionRefreshId": "@triggerBody()?['refreshId']",
-                                                    "correlationId": "@triggerBody()?['correlationId']",
-                                                    "dataRecords": "@variables('data')",
-                                                    "isIngestionComplete": "false",
-                                                    "targetEntityName": "msdyn_stationarycombustion"
-                                                },
-                                                "method": "POST",
-                                                "uri": "@{triggerBody()?['microserviceBaseUrl']}/writeDataToMDL?api-version=1.0"
-                                            },
-                                            "runAfter": {},
-                                            "type": "Http"
-                                        }
-                                    },
-                                    "else": {
-                                        "actions": {
-                                            "HTTP_-_set_connection_failed_incorrect_credentials_(do_not_modify)": {
-                                                "inputs": {
-                                                    "body": {
-                                                        "connectionRefreshId": "@triggerBody()?['refreshId']",
-                                                        "correlationId": "@triggerBody()?['correlationId']",
-                                                        "errorMessage": "Error fetching token. Please check your credentials."
-                                                    },
-                                                    "method": "POST",
-                                                    "uri": "@{triggerBody()?['microserviceBaseUrl']}/reportLogicAppsError?api-version=1.0"
-                                                },
-                                                "runAfter": {},
-                                                "type": "Http"
-                                            }
-                                        }
-                                    },
-                                    "expression": {
-                                        "and": [
-                                            {
-                                                "equals": [
-                                                    "@outputs('GetToken')['statusCode']",
-                                                    200
-                                                ]
-                                            }
-                                        ]
-                                    },
-                                    "runAfter": {
-                                        "Parse_token_status": [
-                                            "Succeeded"
-                                        ]
-                                    },
-                                    "type": "If"
-                                },
-                                "GetToken": {
-                                    "inputs": {
-                                        "body": "client_id=@{triggerBody()?.clientId}&client_secret=@{triggerBody()?.clientSecret}&grant_type=client_credentials&response_type=token",
-                                        "headers": {
-                                            "Content-Type": "application/x-www-form-urlencoded"
-                                        },
-                                        "method": "POST",
-                                        "uri": "https://www.testuri.com"
-                                    },
-                                    "runAfter": {},
-                                    "runtimeConfiguration": {
-                                        "secureData": {
-                                            "properties": [
-                                                "inputs",
-                                                "outputs"
-                                            ]
-                                        }
-                                    },
-                                    "type": "Http"
-                                },
-                                "HTTP_-_write_to_MDL_complete_(do_not_modify)": {
-                                    "inputs": {
-                                        "body": {
-                                            "connectionRefreshId": "@triggerBody()?['refreshId']",
-                                            "correlationId": "@triggerBody()?['correlationId']",
-                                            "dataRecords": [],
-                                            "isIngestionComplete": "true",
-                                            "lastRefreshTime": "@variables('currentRefreshTime')",
-                                            "sourceDataField": "msdyn_energytype",
-                                            "sourceDataValue": "700610000",
-                                            "targetEntityName": "msdyn_purchasedenergy"
-                                        },
-                                        "method": "POST",
-                                        "uri": "@{triggerBody()?['microserviceBaseUrl']}/writeDataToMDL?api-version=1.0"
-                                    },
-                                    "runAfter": {
-                                        "Condition_if_valid_credentials": [
-                                            "Succeeded"
-                                        ]
-                                    },
-                                    "type": "Http"
-                                },
-                                "Parse_token_status": {
-                                    "inputs": {
-                                        "content": "body@{body('GetToken')}",
-                                        "schema": {
-                                            "inputs": {
-                                                "content": "@body('GetToken')",
-                                                "schema": {
-                                                    "properties": {
-                                                        "status": {
-                                                            "type": "integer"
-                                                        }
-                                                    },
-                                                    "type": "object"
-                                                }
-                                            }
-                                        }
-                                    },
-                                    "runAfter": {
-                                        "GetToken": [
-                                            "Succeeded"
-                                        ]
-                                    },
-                                    "type": "ParseJson"
-                                }
-                            },
-                            "runAfter": {
-                                "Initialize_current_refresh_time": [
-                                    "Succeeded"
-                                ]
-                            },
-                            "type": "Scope"
-                        }
-                    },
-                    "contentVersion": "1.0.0.0",
-                    "outputs": {},
-                    "parameters": {},
-                    "triggers": {
-                        "manual": {
-                            "inputs": {
-                                "schema": {
-                                    "properties": {
-                                        "clientId": {
-                                            "type": "string"
-                                        },
-                                        "clientSecret": {
-                                            "type": "string"
-                                        },
-                                        "lastrefreshtime": {
-                                            "type": "string"
-                                        },
-                                        "microserviceBaseUrl": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "type": "object"
-                                }
-                            },
-                            "kind": "Http",
-                            "operationOptions": "EnableSchemaValidation",
-                            "runtimeConfiguration": {
-                                "secureData": {
-                                    "properties": [
-                                        "inputs",
-                                        "outputs"
-                                    ]
-                                }
-                            },
-                            "type": "Request"
-                        }
-                    }
-                }
-            }
-        }
-    ],
-    "outputs": {
-        "workflowName": {
-            "type": "string",
-            "value": "[variables('workflowName')]"
-        }
-    }
+  "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "actions": {
+          "Initialize_current_refresh_time": {
+              "inputs": {
+                  "variables": [
+                      {
+                          "name": "currentRefreshTime",
+                          "type": "string",
+                          "value": "@{utcNow()}"
+                      }
+                  ]
+              },
+              "runAfter": {
+                  "Initialize_variable": [
+                      "Succeeded"
+                  ]
+              },
+              "type": "InitializeVariable"
+          },
+          "Initialize_variable": {
+              "inputs": {
+                  "variables": [
+                      {
+                          "name": "data",
+                          "type": "array"
+                      }
+                  ]
+              },
+              "runAfter": {},
+              "type": "InitializeVariable"
+          },
+          "catch": {
+              "actions": {
+                  "HTTP_-_set_connection_to_failed_(do_not_modify)": {
+                      "inputs": {
+                          "body": {
+                              "connectionRefreshId": "@triggerBody()?['refreshId']",
+                              "correlationId": "@triggerBody()?['correlationId']",
+                              "errorMessage": "Error writing data to MDL"
+                          },
+                          "method": "POST",
+                          "uri": "@{triggerBody()?['microserviceBaseUrl']}/reportLogicAppsError?api-version=1.0"
+                      },
+                      "runAfter": {},
+                      "type": "Http"
+                  }
+              },
+              "runAfter": {
+                  "try": [
+                      "TimedOut",
+                      "Skipped",
+                      "Failed"
+                  ]
+              },
+              "type": "Scope"
+          },
+          "try": {
+              "actions": {
+                  "Condition_if_valid_credentials": {
+                      "actions": {
+                          "HTTP_-_write_to_mdl_(do_not_modify)": {
+                              "inputs": {
+                                  "body": {
+                                      "connectionRefreshId": "@triggerBody()?['refreshId']",
+                                      "correlationId": "@triggerBody()?['correlationId']",
+                                      "dataRecords": "@variables('data')",
+                                      "isIngestionComplete": "false",
+                                      "targetEntityName": "msdyn_stationarycombustion"
+                                  },
+                                  "method": "POST",
+                                  "uri": "@{triggerBody()?['microserviceBaseUrl']}/writeDataToMDL?api-version=1.0"
+                              },
+                              "runAfter": {},
+                              "type": "Http"
+                          }
+                      },
+                      "else": {
+                          "actions": {
+                              "HTTP_-_set_connection_failed_incorrect_credentials_(do_not_modify)": {
+                                  "inputs": {
+                                      "body": {
+                                          "connectionRefreshId": "@triggerBody()?['refreshId']",
+                                          "correlationId": "@triggerBody()?['correlationId']",
+                                          "errorMessage": "Error fetching token. Please check your credentials."
+                                      },
+                                      "method": "POST",
+                                      "uri": "@{triggerBody()?['microserviceBaseUrl']}/reportLogicAppsError?api-version=1.0"
+                                  },
+                                  "runAfter": {},
+                                  "type": "Http"
+                              }
+                          }
+                      },
+                      "expression": {
+                          "and": [
+                              {
+                                  "equals": [
+                                      "@outputs('GetToken')['statusCode']",
+                                      200
+                                  ]
+                              }
+                          ]
+                      },
+                      "runAfter": {
+                          "Parse_token_status": [
+                              "Succeeded"
+                          ]
+                      },
+                      "type": "If"
+                  },
+                  "GetToken": {
+                      "inputs": {
+                          "body": "client_id=@{triggerBody()?.clientId}&client_secret=@{triggerBody()?.clientSecret}&grant_type=client_credentials&response_type=token",
+                          "headers": {
+                              "Content-Type": "application/x-www-form-urlencoded"
+                          },
+                          "method": "POST",
+                          "uri": "https://www.testuri.com"
+                      },
+                      "runAfter": {},
+                      "runtimeConfiguration": {
+                          "secureData": {
+                              "properties": [
+                                  "inputs",
+                                  "outputs"
+                              ]
+                          }
+                      },
+                      "type": "Http"
+                  },
+                  "HTTP_-_write_to_MDL_complete_(do_not_modify)": {
+                      "inputs": {
+                          "body": {
+                              "connectionRefreshId": "@triggerBody()?['refreshId']",
+                              "correlationId": "@triggerBody()?['correlationId']",
+                              "dataRecords": [],
+                              "isIngestionComplete": "true",
+                              "lastRefreshTime": "@variables('currentRefreshTime')",
+                              "sourceDataField": "msdyn_energytype",
+                              "sourceDataValue": "700610000",
+                              "targetEntityName": "msdyn_purchasedenergy"
+                          },
+                          "method": "POST",
+                          "uri": "@{triggerBody()?['microserviceBaseUrl']}/writeDataToMDL?api-version=1.0"
+                      },
+                      "runAfter": {
+                          "Condition_if_valid_credentials": [
+                              "Succeeded"
+                          ]
+                      },
+                      "type": "Http"
+                  },
+                  "Parse_token_status": {
+                      "inputs": {
+                          "content": "body@{body('GetToken')}",
+                          "schema": {
+                              "inputs": {
+                                  "content": "@body('GetToken')",
+                                  "schema": {
+                                      "properties": {
+                                          "status": {
+                                              "type": "integer"
+                                          }
+                                      },
+                                      "type": "object"
+                                  }
+                              }
+                          }
+                      },
+                      "runAfter": {
+                          "GetToken": [
+                              "Succeeded"
+                          ]
+                      },
+                      "type": "ParseJson"
+                  }
+              },
+              "runAfter": {
+                  "Initialize_current_refresh_time": [
+                      "Succeeded"
+                  ]
+              },
+              "type": "Scope"
+          }
+      },
+      "contentVersion": "1.0.0.0",
+      "outputs": {},
+      "parameters": {},
+      "triggers": {
+          "manual": {
+              "inputs": {
+                  "schema": {
+                      "properties": {
+                          "clientId": {
+                              "type": "string"
+                          },
+                          "clientSecret": {
+                              "type": "string"
+                          },
+                          "lastrefreshtime": {
+                              "type": "string"
+                          },
+                          "microserviceBaseUrl": {
+                              "type": "string"
+                          }
+                      },
+                      "type": "object"
+                  }
+              },
+              "kind": "Http",
+              "operationOptions": "EnableSchemaValidation",
+              "runtimeConfiguration": {
+                  "secureData": {
+                      "properties": [
+                          "inputs",
+                          "outputs"
+                      ]
+                  }
+              },
+              "type": "Request"
+          }
+      }
+  },
+  "parameters": {}
 }
